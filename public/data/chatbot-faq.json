@@ -1,0 +1,94 @@
+{
+  "chatbotFaq": [
+    {
+      "id": "overview-sales-tax",
+      "question": "What kind of sales tax relief does STC provide?",
+      "answer": "STC provides full-service automated sales tax compliance with human oversight. This includes registrations, monthly filings, notice handling, and issue resolution to prevent automation errors.",
+      "tags": ["sales-tax", "services"]
+    },
+    {
+      "id": "contact-options",
+      "question": "How do I start a conversation with STC?",
+      "answer": "You can start a conversation using the Chat Now or Call Now buttons, or schedule a meeting directly through the booking option.",
+      "tags": ["contact"]
+    },
+    {
+      "id": "guided-process",
+      "question": "Is there a guided process to help me stay compliant?",
+      "answer": "Yes. STC provides a step-by-step guided workflow including profile setup, document upload, interviews, and milestone tracking to stay on schedule.",
+      "tags": ["process", "compliance"]
+    },
+    {
+      "id": "crm-benefits",
+      "question": "What CRM and operational benefits are included?",
+      "answer": "The CRM dashboard offers store performance insights, efficiency tracking, automated data updates, scalability, secure data management, and a unified customer view.",
+      "tags": ["crm", "features"]
+    },
+    {
+      "id": "integrations-ai",
+      "question": "Which integrations and AI tools can I use?",
+      "answer": "STC connects with Google Meet, Zoom, Slack, and Notion, and includes STC AI and a browser extension for quick answers and automated workflows.",
+      "tags": ["integrations", "ai"]
+    },
+    {
+      "id": "pricing-core-plans",
+      "question": "What do the Base, Pro, and Enterprise plans include?",
+      "answer": "The Base, Pro, and Enterprise plans offer increasing internet speeds, extended service hours, priority support, insights, and advanced analytics depending on the tier.",
+      "tags": ["pricing", "plans"]
+    },
+    {
+      "id": "pricing-flexibility",
+      "question": "Is there a trial and can I cancel anytime?",
+      "answer": "Yes, there is a one-month free trial and you can cancel your subscription at any time without penalties.",
+      "tags": ["pricing", "policies"]
+    },
+    {
+      "id": "state-tier-pricing",
+      "question": "How does pricing scale by states and volume?",
+      "answer": "Pricing increases based on the number of states and monthly orders. Add-ons are available for registrations, extra channels, and high-volume orders.",
+      "tags": ["pricing", "compliance"]
+    },
+    {
+      "id": "affordable-plan-cards",
+      "question": "Do you offer simple pricing plans for comparison?",
+      "answer": "Yes. The Essential, Enterprise, and Elite plans provide varying levels of users, reporting, support, and additional features for easy comparison.",
+      "tags": ["pricing", "comparison"]
+    },
+    {
+      "id": "country-tax-services",
+      "question": "What country-wise tax and corporate services are available?",
+      "answer": "STC offers company incorporation, corporate security, nominee director services, mail management, and bookkeeping with clear pricing and feature lists.",
+      "tags": ["services", "international"]
+    },
+    {
+      "id": "mission-team",
+      "question": "What does the About page say about your mission and team?",
+      "answer": "STC focuses on supporting business growth through flexible solutions and introduces its leadership team along with available career opportunities.",
+      "tags": ["about", "team"]
+    },
+    {
+      "id": "faq-suitability",
+      "question": "Is the platform suitable for small and large businesses?",
+      "answer": "Yes. STC scales from small businesses to enterprises and includes lead tracking, pipeline tools, automation, reporting, and CRM integrations.",
+      "tags": ["features", "suitability"]
+    },
+    {
+      "id": "support-contact",
+      "question": "How can I reach support or find resources?",
+      "answer": "You can contact support via support@salore.com or visit the Help Center for documentation and common answers.",
+      "tags": ["support", "contact"]
+    },
+    {
+      "id": "testimonials",
+      "question": "What do customers say about STC?",
+      "answer": "Customers report that STC saves time, improves accuracy, and offers affordable automation for content and compliance tasks.",
+      "tags": ["reviews", "testimonials"]
+    },
+    {
+      "id": "remote-connectivity",
+      "question": "Do you support internet and services in remote areas?",
+      "answer": "Yes. STC highlights connectivity options for underserved regions and allows filtering by country and city to find available services.",
+      "tags": ["coverage", "infrastructure"]
+    }
+  ]
+}
