@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import {
-  ChevronDown,
   MailQuestion,
   MessageSquare,
   MoreHorizontal,
@@ -15,12 +14,10 @@ import {
   ref,
   onValue,
   push,
-  set,
   query as rdbQuery,
   orderByChild,
   limitToFirst,
   update,
-  off,
 } from "firebase/database";
 import { signInAnonymously } from "firebase/auth";
 
@@ -73,6 +70,7 @@ export default function ChatsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // ✅ FIRST LOAD: DO NOT AUTO-OPEN ANY CHAT
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -86,12 +84,28 @@ export default function ChatsPage() {
       const arr = Object.keys(v).map((k) => ({ id: k, ...(v[k] as any) }));
       arr.sort((a: any, b: any) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
       setChats(arr);
-      if (!activeId && arr.length) setActiveId(arr[0].id);
+
+      // ❌ don't auto-open on first render
+      // if (!activeId && arr.length) setActiveId(arr[0].id);
     });
 
     return () => cb();
   }, []);
 
+  // ✅ ESC closes conversation and shows placeholder again
+  useEffect(() => {
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setActiveId(null);
+        setMessages([]);
+        setPrevMessageCount(0);
+      }
+    }
+    document.addEventListener("keydown", onEsc);
+    return () => document.removeEventListener("keydown", onEsc);
+  }, []);
+
+  // ✅ load messages only when a chat is selected
   useEffect(() => {
     if (!activeId) return;
 
@@ -142,8 +156,8 @@ export default function ChatsPage() {
   }, [activeId, prevMessageCount]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (activeId) scrollToBottom();
+  }, [messages, activeId]);
 
   // ✅ SUPPORT STARTS CHAT => set status live (bot/FAQ should stop)
   async function sendReply() {
@@ -163,19 +177,10 @@ export default function ChatsPage() {
     await update(ref(rdb, `chats/${activeId}`), {
       lastMessage: reply.trim(),
       lastUpdated: Date.now(),
-      // if support talking first time, flip to live
       ...(wasBotOrNull ? { status: "live" } : {}),
     });
 
     setReply("");
-  }
-
-  function fmt(ts?: number) {
-    if (!ts) return "";
-    const d = new Date(ts);
-    return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${String(
-      d.getMinutes()
-    ).padStart(2, "0")}`;
   }
 
   function formatMessageTime(ts?: number) {
@@ -215,6 +220,8 @@ export default function ChatsPage() {
       return (b.lastUpdated || 0) - (a.lastUpdated || 0);
     });
 
+  const activeChat = chats.find((c) => c.id === activeId) || null;
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
       {/* Chats title and filter tabs */}
@@ -223,12 +230,14 @@ export default function ChatsPage() {
           <h2 className="text-lg font-semibold">Chats</h2>
           <p className="text-xs text-slate-400">
             Date:{" "}
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
+            <span suppressHydrationWarning>
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+            </span>
           </p>
         </div>
 
@@ -350,7 +359,7 @@ export default function ChatsPage() {
                         }`}
                       />
                       {isUserOnline(chat.lastUpdated) && (
-                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></div>
+                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
                       )}
                     </div>
                     <div>
@@ -370,9 +379,10 @@ export default function ChatsPage() {
                       </p>
                     </div>
                   </div>
+
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-slate-400">12:00</span>
+                      <span className="text-[11px] text-slate-400"> </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -386,6 +396,7 @@ export default function ChatsPage() {
                         <Pin className="w-3 h-3" />
                       </button>
                     </div>
+
                     {(chat.unread || 0) > 0 && (
                       <span className="h-5 min-w-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center">
                         {chat.unread}
@@ -400,149 +411,157 @@ export default function ChatsPage() {
 
         {/* Conversation */}
         <section className="flex-1 flex flex-col bg-slate-50/50 rounded-2xl border border-slate-100">
-          {/* Header */}
-          <div className="shrink-0 h-16 px-5 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div
-                  className={`h-9 w-9 rounded-full ${
-                    chats.find((c) => c.id === activeId)?.status === "live"
-                      ? "bg-green-200"
-                      : "bg-pink-200"
-                  }`}
-                />
-                {isUserOnline(
-                  chats.find((c) => c.id === activeId)?.lastUpdated
-                ) && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">
-                    {chats.find((c) => c.id === activeId)?.name ||
-                      "No chat selected"}
-                  </span>
-                  {chats.find((c) => c.id === activeId)?.status === "live" && (
-                    <span className="px-2 py-0.5 rounded-full bg-green-100 text-[10px] text-green-700 font-semibold">
-                      🔴 LIVE
-                    </span>
-                  )}
-                  <span className="px-2 py-0.5 rounded-full bg-green-50 text-[10px] text-green-600 font-medium">
-                    Customer
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  {chats.find((c) => c.id === activeId)?.email || ""}
-                  {isUserOnline(
-                    chats.find((c) => c.id === activeId)?.lastUpdated
-                  ) && <span className="ml-2 text-green-500">• Online</span>}
-                </p>
-              </div>
+          {/* ✅ PLACEHOLDER when no chat selected */}
+          {!activeChat ? (
+            <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
+              Please open chat from list
             </div>
-            <button className="h-8 w-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400">
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Messages */}
-          <div
-            className="flex-1 px-6 py-4 overflow-y-auto text-xs space-y-6"
-            style={{ minHeight: 0 }}
-          >
-            {messages.length === 0 && (
-              <div className="text-center text-slate-500">No messages yet</div>
-            )}
-
-            {messages.map((m, idx) => (
-              <div key={m.id || idx} className="space-y-1">
-                <div
-                  className={`flex items-end gap-2 ${
-                    m.from === "admin" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  {m.from !== "admin" && (
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-teal-100 text-teal-600 shadow-sm">
-                      {m.from === "bot" ? "🤖" : "U"}
-                    </div>
-                  )}
-
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
-                      m.from === "admin"
-                        ? "bg-linear-to-r from-[#45A3D9] to-[#45D9D0] text-white"
-                        : "bg-white text-slate-700"
-                    }`}
-                  >
-                    {m.text}
+          ) : (
+            <>
+              {/* Header */}
+              <div className="shrink-0 h-16 px-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div
+                      className={`h-9 w-9 rounded-full ${
+                        activeChat.status === "live"
+                          ? "bg-green-200"
+                          : "bg-pink-200"
+                      }`}
+                    />
+                    {isUserOnline(activeChat.lastUpdated) && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                    )}
                   </div>
-
-                  {m.from === "admin" && (
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-linear-to-r from-[#45A3D9] to-[#45D9D0] text-white text-xs font-semibold shadow-sm">
-                      Me
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">
+                        {activeChat.name || activeChat.email}
+                      </span>
+                      {activeChat.status === "live" && (
+                        <span className="px-2 py-0.5 rounded-full bg-green-100 text-[10px] text-green-700 font-semibold">
+                          🔴 LIVE
+                        </span>
+                      )}
+                      <span className="px-2 py-0.5 rounded-full bg-green-50 text-[10px] text-green-600 font-medium">
+                        Customer
+                      </span>
                     </div>
-                  )}
+                    <p className="text-[11px] text-slate-400">
+                      {activeChat.email || ""}
+                      {isUserOnline(activeChat.lastUpdated) && (
+                        <span className="ml-2 text-green-500">• Online</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                {m.createdAt && (
-                  <div
-                    className={`text-[10px] text-slate-400 px-10 ${
-                      m.from === "admin" ? "text-right" : "text-left"
-                    }`}
-                  >
-                    {formatMessageTime(m.createdAt)}
-                  </div>
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <div className="shrink-0 border-t border-slate-100 px-6 py-3 flex flex-col gap-2">
-            <div className="flex flex-wrap gap-2 text-[11px] text-blue-600">
-              {[
-                "Certainly! The product is available.",
-                "Great news! We can help with that.",
-                "I'm here to help you.",
-                "Sure! Let me assist you.",
-                "+",
-              ].map((chip) => (
-                <button
-                  key={chip}
-                  onClick={() => setReply(chip === "+" ? reply : chip)}
-                  className="rounded-full border border-blue-200 px-3 py-1 bg-blue-50 hover:bg-blue-100 transition"
-                >
-                  {chip === "+"
-                    ? chip
-                    : chip.substring(0, chip.indexOf("!") + 1) + "..."}
+                <button className="h-8 w-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                  <MoreHorizontal className="w-4 h-4" />
                 </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-3 ">
-              <div className="flex-1 rounded-full border border-slate-200 bg-white px-4 py-2 flex items-center gap-2 text-[13px] text-slate-500">
-                <span className="text-lg">⌨️</span>
-                <input
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      sendReply();
-                    }
-                  }}
-                  className="flex-1 bg-transparent outline-none"
-                  placeholder="Write message..."
-                />
               </div>
-              <button
-                onClick={sendReply}
-                className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center"
+
+              {/* Messages */}
+              <div
+                className="flex-1 px-6 py-4 overflow-y-auto text-xs space-y-6"
+                style={{ minHeight: 0 }}
               >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+                {messages.length === 0 && (
+                  <div className="text-center text-slate-500">
+                    No messages yet
+                  </div>
+                )}
+
+                {messages.map((m, idx) => (
+                  <div key={m.id || idx} className="space-y-1">
+                    <div
+                      className={`flex items-end gap-2 ${
+                        m.from === "admin" ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      {m.from !== "admin" && (
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-teal-100 text-teal-600 shadow-sm">
+                          {m.from === "bot" ? "🤖" : "U"}
+                        </div>
+                      )}
+
+                      <div
+                        className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                          m.from === "admin"
+                            ? "bg-linear-to-r from-[#45A3D9] to-[#45D9D0] text-white"
+                            : "bg-white text-slate-700"
+                        }`}
+                      >
+                        {m.text}
+                      </div>
+
+                      {m.from === "admin" && (
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-linear-to-r from-[#45A3D9] to-[#45D9D0] text-white text-xs font-semibold shadow-sm">
+                          Me
+                        </div>
+                      )}
+                    </div>
+                    {m.createdAt && (
+                      <div
+                        className={`text-[10px] text-slate-400 px-10 ${
+                          m.from === "admin" ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {formatMessageTime(m.createdAt)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="shrink-0 border-t border-slate-100 px-6 py-3 flex flex-col gap-2">
+                <div className="flex flex-wrap gap-2 text-[11px] text-blue-600">
+                  {[
+                    "Certainly! The product is available.",
+                    "Great news! We can help with that.",
+                    "I'm here to help you.",
+                    "Sure! Let me assist you.",
+                    "+",
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      onClick={() => setReply(chip === "+" ? reply : chip)}
+                      className="rounded-full border border-blue-200 px-3 py-1 bg-blue-50 hover:bg-blue-100 transition"
+                    >
+                      {chip === "+"
+                        ? chip
+                        : chip.substring(0, chip.indexOf("!") + 1) + "..."}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3 ">
+                  <div className="flex-1 rounded-full border border-slate-200 bg-white px-4 py-2 flex items-center gap-2 text-[13px] text-slate-500">
+                    <span className="text-lg">⌨️</span>
+                    <input
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          sendReply();
+                        }
+                      }}
+                      className="flex-1 bg-transparent outline-none"
+                      placeholder="Write message..."
+                    />
+                  </div>
+                  <button
+                    onClick={sendReply}
+                    className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </section>
       </div>
     </div>

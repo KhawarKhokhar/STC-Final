@@ -1,6 +1,6 @@
-// app/components/ArticlesGallery.tsx
 "use client";
 
+import Link from "next/link";
 import React from "react";
 import {
   Search,
@@ -9,6 +9,7 @@ import {
   Camera,
   ChevronRight,
 } from "lucide-react";
+import { Blog, listBlogs } from "@/lib/blogs";
 
 /* ------------ background ---------------- */
 const gridBackgroundStyle = {
@@ -20,44 +21,64 @@ const gridBackgroundStyle = {
   backgroundColor: "#F3EFE8",
 } as const;
 
-/* ------------------------------- data ------------------------------- */
-type Article = {
-  id: number;
-  title: string;
-  excerpt: string;
-  category: string;
-  time: string;
-};
-
-const CATEGORIES = ["All", "Technology", "Education", "Lifestyle", "Healthcare", "Sport", "Food"];
-
-const demoText =
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit aliquam, purus sit amet luctus venenatis, lectus";
-
-const ARTICLES: Article[] = Array.from({ length: 12 }).map((_, i) => ({
-  id: i + 1,
-  title: "Changing people’s lifestyles for the better",
-  excerpt: demoText,
-  category: CATEGORIES[(i % (CATEGORIES.length - 1)) + 1], // rotate (skip "All")
-  time: "2 hours ago",
-}));
-
 /* ---------------------------- utilities ---------------------------- */
-const cn = (...a: Array<string | false | null | undefined>) => a.filter(Boolean).join(" ");
+const cn = (...a: Array<string | false | null | undefined>) =>
+  a.filter(Boolean).join(" ");
 
 /* ----------------------------- component --------------------------- */
 const ArticlesGallery: React.FC = () => {
+  const [blogs, setBlogs] = React.useState<Blog[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState<string>("All");
   const [view, setView] = React.useState<"grid" | "list">("grid");
 
-  const filtered = ARTICLES.filter((a) => {
-    const matchCat = active === "All" ? true : a.category === active;
-    const matchQuery = query.trim()
-      ? a.title.toLowerCase().includes(query.toLowerCase())
-      : true;
-    return matchCat && matchQuery;
-  });
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await listBlogs(false);
+        if (!mounted) return;
+        setBlogs(data);
+      } catch (err) {
+        console.error(err);
+        if (mounted) setError("Unable to load blogs right now.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const categories = React.useMemo(() => {
+    const set = new Set<string>();
+    blogs.forEach((b) => set.add(b.category || "General"));
+    return ["All", ...Array.from(set)];
+  }, [blogs]);
+
+  const filtered = React.useMemo(() => {
+    return blogs.filter((b) => {
+      const category = b.category || "General";
+      const matchCat = active === "All" ? true : category === active;
+      const matchQuery = query.trim()
+        ? (b.title?.toLowerCase() || "").includes(query.toLowerCase()) ||
+          (b.excerpt?.toLowerCase() || "").includes(query.toLowerCase())
+        : true;
+      return matchCat && matchQuery;
+    });
+  }, [blogs, query, active]);
+
+  const formatDate = (ms?: number) =>
+    ms
+      ? new Date(ms).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "—";
 
   return (
     <section style={gridBackgroundStyle} className="px-4 md:px-64 py-24">
@@ -99,7 +120,7 @@ const ArticlesGallery: React.FC = () => {
 
       {/* chips */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <button
             key={c}
             onClick={() => setActive(c)}
@@ -124,54 +145,90 @@ const ArticlesGallery: React.FC = () => {
             : "flex flex-col"
         )}
       >
-        {filtered.map((a) => (
-          <article
-            key={a.id}
-            className={cn(
-              "rounded-xl border border-slate-500 bg-white overflow-hidden",
-              view === "list" && "grid grid-cols-3"
-            )}
-          >
-            {/* image placeholder */}
-            <div className={cn("bg-[#C4C4C4] grid place-items-center", view === "list" ? "h-48 col-span-1" : "h-48")}>
-              <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-400/60 text-white">
-                <Camera className="h-4 w-4" />
-              </div>
-            </div>
-
-            {/* content */}
+        {loading ? (
+          Array.from({ length: 6 }).map((_, idx) => (
             <div
+              key={idx}
+              className="h-64 rounded-xl border border-slate-200 bg-white animate-pulse"
+            />
+          ))
+        ) : error ? (
+          <div className="col-span-3 text-center text-slate-600 py-12">
+            {error}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="col-span-3 text-center text-slate-600 py-12">
+            No blogs found.
+          </div>
+        ) : (
+          filtered.map((a) => (
+            <article
+              key={a.id}
               className={cn(
-                "relative",
-                view === "list" ? "col-span-2" : ""
+                "rounded-xl border border-slate-500 bg-white overflow-hidden flex flex-col h-100",
+                view === "list" && "grid grid-cols-3"
               )}
             >
-              {/* top meta bar */}
-              <div className="bg-[linear-gradient(180deg,#3dd3ce,#fff2d0)]">
-              <div className="flex items-center justify-between border-t border-slate-500 px-8 py-3">
-                <span className="tracking-[0.35em] text-lg font-bold text-slate-700">
-                  LIFE&STYLE
-                </span>
-                <span className="flex items-center gap-1 text-md text-slate-500">
-                  {a.time}
-                </span>
+              {/* image placeholder */}
+              <div
+                className={cn(
+                  "bg-[#C4C4C4] grid place-items-center overflow-hidden",
+                  view === "list" ? "h-52 col-span-1" : "aspect-4/3"
+                )}
+              >
+                {a.coverImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={a.coverImageUrl}
+                    alt={a.title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-400/60 text-white">
+                    <Camera className="h-4 w-4" />
+                  </div>
+                )}
               </div>
 
-              {/* body */}
-              <div className="px-8 pb-5 pt-3">
-                <h3 className="text-[20px] font-extrabold text-slate-900 leading-snug">
-                  {a.title}
-                </h3>
-                <p className="mt-2 text-md text-slate-600 line-clamp-2">{a.excerpt}</p>
+              {/* content */}
+              <div
+                className={cn(
+                  "relative flex flex-col h-full",
+                  view === "list" ? "col-span-2" : ""
+                )}
+              >
+                {/* top meta bar */}
+                <div className="bg-[linear-gradient(180deg,#3dd3ce,#fff2d0)] flex flex-col h-full">
+                  <div className="flex items-center justify-between border-t border-slate-500 px-8 py-3">
+                    <span className="tracking-[0.35em] text-lg font-bold text-slate-700">
+                      {(a.category || "GENERAL").toUpperCase()}
+                    </span>
+                    <span className="flex items-center gap-1 text-md text-slate-500">
+                      {formatDate(a.createdAt)}
+                    </span>
+                  </div>
 
-                <button className="mt-4 inline-flex items-center gap-2 text-lg font-semibold text-slate-900">
-                  Read More <ChevronRight className="h-4 w-4" />
-                </button>
+                  {/* body */}
+                  <div className="px-6 pb-4 pt-2 flex flex-col flex-1">
+                    <h3 className="text-[18px] font-extrabold text-slate-900 leading-snug">
+                      {a.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-600 line-clamp-2">
+                      {a.excerpt}
+                    </p>
+
+                    <Link
+                      href={`/blog-details/${a.id}`}
+                      className="mt-3 inline-flex items-center gap-2 text-base font-semibold text-slate-900"
+                    >
+                      Read More <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </div>
               </div>
-              </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          ))
+        )}
       </div>
     </section>
   );

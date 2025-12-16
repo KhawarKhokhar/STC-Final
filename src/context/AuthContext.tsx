@@ -1,23 +1,20 @@
-// context/AuthContext.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
-type AuthContextType = {
+type AuthCtx = {
   user: User | null;
   loading: boolean;
 };
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-});
+const AuthContext = createContext<AuthCtx>({ user: null, loading: true });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // ✅ Seed immediately if Firebase already restored session
+  const [user, setUser] = useState<User | null>(auth.currentUser);
+  const [loading, setLoading] = useState(!auth.currentUser);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -34,4 +31,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  return useContext(AuthContext);
+}

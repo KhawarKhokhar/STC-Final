@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom'; // ensure matchers like toBeInTheDocument work
 import CarbonJourneyPopup from '@/components/reusable/common/CarbonJourneyPopup';
+import "cross-fetch/polyfill";
+
 
 describe('CarbonJourneyPopup', () => {
   it('renders when open is true', () => {

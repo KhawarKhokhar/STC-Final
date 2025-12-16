@@ -56,7 +56,16 @@ export default function BlogDetail({
         </div>
 
         {/* Cover image / placeholder */}
-        <div className="mt-8 h-124 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-200/80 shadow-inner"></div>
+        <div className="mt-8 h-124 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-200/80 shadow-inner">
+          {coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverUrl}
+              alt={title}
+              className="h-full w-full object-cover"
+            />
+          ) : null}
+        </div>
       </div>
     </section>
   );

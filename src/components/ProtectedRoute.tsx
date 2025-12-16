@@ -1,25 +1,35 @@
-// components/ProtectedRoute.tsx
 "use client";
 
-import React, { useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import Loader from "@/components/ui/Loader";
 import { useAuth } from "@/context/AuthContext";
-import { useRouter, usePathname } from "next/navigation";
-import Loader from "./ui/Loader";
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    }
-  }, [user, loading, router, pathname]);
+  // ✅ avoid SSR/client mismatch, and avoid redirect before mount
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  if (loading) return <div className="flex items-center justify-center w-full h-full">
-      <Loader />
-    </div>;
+  useEffect(() => {
+    if (mounted && !loading && !user) {
+      const continueTo = encodeURIComponent(pathname || "/dashboard");
+      router.replace(`/login?continueTo=${continueTo}`);
+    }
+  }, [mounted, loading, user, router, pathname]);
+
+  // Stable fallback while checking auth
+  if (!mounted || loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center">
+        <Loader />
+      </div>
+    );
+  }
+
   if (!user) return null;
 
   return <>{children}</>;

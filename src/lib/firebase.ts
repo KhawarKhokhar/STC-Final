@@ -4,6 +4,7 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { getDatabase } from "firebase/database";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -31,3 +32,4 @@ for (const k of required) {
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const rdb = getDatabase(app); 
 export const auth = getAuth(app);
+export const db = getFirestore(app);

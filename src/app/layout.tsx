@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import LayoutWrapper from "@/components/ui/LayoutWrapper"; // Import the new wrapper
 import { AuthProvider } from "@/context/AuthContext";
 import ScrollToTop from "@/components/ui/ScrollToTop";
+import StyledComponentsRegistry from "@/lib/styled-components";
 
 export const metadata: Metadata = {
   title: "Sales Tax Corp",
@@ -19,12 +20,14 @@ export default function RootLayout({
       <head>{/* ... (Your font links) ... */}</head>
       <body>
         {/* Pass all children (pages) to the client-side wrapper */}
-        <AuthProvider>
-          <LayoutWrapper>
-            {children}
-            <ScrollToTop />
-          </LayoutWrapper>
-        </AuthProvider>
+        <StyledComponentsRegistry>
+          <AuthProvider>
+            <LayoutWrapper>
+              {children}
+              <ScrollToTop />
+            </LayoutWrapper>
+          </AuthProvider>
+        </StyledComponentsRegistry>
       </body>
     </html>
   );

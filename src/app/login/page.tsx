@@ -86,8 +86,8 @@ export default function LoginPage() {
         </div>
 
         {err && (
-          <p className="text-sm text-red-600 wrap-break-word">
-            {err}
+          <p className="text-xs text-red-600 wrap-break-word">
+            Enter Your Email and Password!
           </p>
         )}
 
@@ -101,7 +101,7 @@ export default function LoginPage() {
         </button>
 
         <p className="text-center text-xs text-gray-600 pt-2">
-          © {new Date().getFullYear()} Sales Tax Corp
+          © 2025 Sales Tax Corp
         </p>
       </motion.form>
     </div>

@@ -58,6 +58,7 @@ export default function ChatWidget({
   >([]);
   const [askedFaqIds, setAskedFaqIds] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // ✅ NEW: chat status + faq lock flag
   const [chatStatus, setChatStatus] = useState<"bot" | "live" | "closed">("bot");
@@ -117,6 +118,7 @@ export default function ChatWidget({
     }
 
     localStorage.setItem("stc-bot:profile", JSON.stringify({ name, email }));
+    setFormError(null);
 
     try {
       if (!auth.currentUser) {
@@ -141,6 +143,9 @@ export default function ChatWidget({
       console.log("[ChatWidget] Chat doc created successfully");
     } catch (e) {
       console.error("[ChatWidget] Error in continueWithProfile:", e);
+      setFormError(
+        "We couldn't initialize the chat. Please try again in a moment."
+      );
       alert("Failed to initialize chat. Please try again.");
       return;
     }
@@ -180,6 +185,7 @@ export default function ChatWidget({
       setScreen("welcome");
       return;
     }
+    setFormError(null);
     startChat(greeting);
   }
 
@@ -224,9 +230,8 @@ export default function ChatWidget({
                   status: "bot",
                 });
               } catch (err) {
-                console.warn(
-                  "[ChatWidget] failed to update chat preview after greeting",
-                  err
+                setFormError(
+                  "We saved your greeting but couldn't refresh the chat preview. Please continue messaging."
                 );
               }
             } catch (err: any) {
@@ -394,7 +399,10 @@ export default function ChatWidget({
         try {
           await signInAnonymously(auth);
         } catch (e) {
-          console.warn("Anonymous sign-in failed or pending:", e);
+          setFormError(
+            "We couldn't start a guest chat session. Please retry or check your connection."
+          );
+          throw e;
         }
       }
 
@@ -475,11 +483,14 @@ export default function ChatWidget({
       startListeningToMessages(chatId);
       startListeningToChatStatus(chatId); // ✅ NEW
       return chatId;
-    } catch (err) {
-      console.error("ensureChatDoc error", err);
-      throw err;
-    }
+  } catch (err) {
+    console.error("ensureChatDoc error", err);
+    setFormError(
+      "We couldn't start the chat session. Please refresh and try again."
+    );
+    throw err;
   }
+}
 
   // ✅ NEW: Listen to /chats/{id}/status
   let unsubscribeChatStatus: (() => void) | null = null;
@@ -567,7 +578,10 @@ export default function ChatWidget({
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              setFormError(null);
+              setOpen(true);
+            }}
             className="h-14 w-14 rounded-full shadow-lg flex items-center justify-center"
             style={{ background: accent }}
           >
@@ -597,6 +611,19 @@ export default function ChatWidget({
               onEdit={() => setScreen("welcome")}
               onBack={() => setScreen("compose")}
             />
+
+            {formError && (
+              <div className="mx-4 mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 flex items-start gap-2">
+                <span>{formError}</span>
+                <button
+                  className="ml-auto text-red-500 hover:text-red-700"
+                  onClick={() => setFormError(null)}
+                  aria-label="Dismiss error"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
 
             <AnimatePresence mode="wait">
               {screen === "welcome" && (

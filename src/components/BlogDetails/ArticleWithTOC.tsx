@@ -96,16 +96,17 @@ export default function ArticleWithTOC({
                 <img
                   src={section.imageUrl}
                   alt="section image"
-                  className="mt-4 aspect-[16/9] w-full rounded-xl object-cover"
+                  className="mt-4 aspect-video w-full rounded-xl object-cover"
                 />
               ) : index === 1 ? (
-                <div className="mt-4 aspect-[16/9] w-full rounded-xl bg-neutral-200" />
+                <div className="mt-4 aspect-video w-full rounded-xl bg-neutral-200" />
               ) : null}
 
               {section.description && (
-                <p className="mt-4 text-sm leading-6 text-neutral-600">
-                  {section.description}
-                </p>
+                <div
+                  className="mt-4 text-sm leading-6 text-neutral-600 space-y-2"
+                  dangerouslySetInnerHTML={{ __html: section.description }}
+                />
               )}
 
               {section.bullets && (

@@ -18,6 +18,7 @@ import {
   User,
   Settings,
   LogOut,
+  X,
 } from "lucide-react";
 import { Suspense, useEffect, useRef, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -27,6 +28,53 @@ import { auth, rdb } from "@/lib/firebase";
 import { ref, onValue, update } from "firebase/database";
 import Loader from "@/components/ui/Loader";
 
+// ---------------------------
+// AUTO LOGOUT (3 HOURS)
+// ---------------------------
+const THREE_HOURS = 3 * 60 * 60 * 1000;
+
+function useAutoLogoutAfter3Hours() {
+  const router = useRouter();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!auth.currentUser) {
+      localStorage.removeItem("loginAt");
+      return;
+    }
+
+    const stored = localStorage.getItem("loginAt");
+    const loginAt = stored ? Number(stored) : Date.now();
+    if (!stored) localStorage.setItem("loginAt", String(loginAt));
+
+    const elapsed = Date.now() - loginAt;
+    const remaining = THREE_HOURS - elapsed;
+
+    const doLogout = async () => {
+      try {
+        await signOut(auth);
+      } finally {
+        localStorage.removeItem("loginAt");
+        router.replace("/login");
+      }
+    };
+
+    if (remaining <= 0) {
+      doLogout();
+      return;
+    }
+
+    timerRef.current = setTimeout(doLogout, remaining);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [router]);
+}
+
+// ---------------------------
+// UI CONFIG
+// ---------------------------
 const menuItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Blogs", href: "/dashboard/blogs", icon: FileText },
@@ -37,7 +85,7 @@ const menuItems = [
   { label: "Chats", href: "/dashboard/chats", icon: MessageCircle },
   { label: "Billing", href: "#", icon: CreditCard },
   { label: "History", href: "#", icon: Clock },
-  { label: "Notification", href: "#", icon: Bell },
+  { label: "Notification", href: "/dashboard/notifications", icon: Bell },
 ];
 
 type Notif = {
@@ -51,15 +99,20 @@ type Notif = {
 };
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  useAutoLogoutAfter3Hours();
+
   const [openNotif, setOpenNotif] = useState(false);
   const [openProfile, setOpenProfile] = useState(false);
   const router = useRouter();
 
   const notifRef = useRef<HTMLDivElement | null>(null);
   const profileRef = useRef<HTMLDivElement | null>(null);
+  const lastSeenCreatedAtRef = useRef<number>(0);
+  const initialNotifLoadRef = useRef(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ✅ Notifications from RTDB
   const [notifications, setNotifications] = useState<Notif[]>([]);
+  const [toastNotif, setToastNotif] = useState<Notif | null>(null);
 
   // close on outside click
   useEffect(() => {
@@ -89,7 +142,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // ✅ Listen to /notifications
+  // Listen to /notifications
   useEffect(() => {
     const nRef = ref(rdb, "notifications");
 
@@ -113,9 +166,50 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     return () => unsub();
   }, []);
 
+  // Detect new notifications and show a lightweight toast in the bottom-right corner.
+  useEffect(() => {
+    if (!notifications.length) return;
+
+    const latestCreatedAt = Math.max(
+      ...notifications.map((n) => n.createdAt || 0)
+    );
+
+    if (!initialNotifLoadRef.current) {
+      lastSeenCreatedAtRef.current = latestCreatedAt;
+      initialNotifLoadRef.current = true;
+      return;
+    }
+
+    const newNotif = notifications.find(
+      (n) => (n.createdAt || 0) > lastSeenCreatedAtRef.current
+    );
+
+    if (newNotif) {
+      setToastNotif(newNotif);
+    }
+
+    lastSeenCreatedAtRef.current = latestCreatedAt;
+  }, [notifications]);
+
+  // Auto-hide toast after a short delay.
+  useEffect(() => {
+    if (!toastNotif) return;
+
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = setTimeout(() => {
+      setToastNotif(null);
+    }, 5000);
+
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, [toastNotif]);
+
   const unreadCount = notifications.filter((n) => n.unread).length;
 
-  // ✅ NEW: sidebar badge counts
   const unreadChatsCount = notifications.filter(
     (n) => n.unread && n.type === "chat"
   ).length;
@@ -142,7 +236,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           {/* Main menu */}
           <nav className="bg-[#F3F3F3] mt-4 flex-1 px-3 space-y-1 overflow-y-auto">
             {menuItems.map(({ label, href, icon: Icon }) => {
-              // ✅ attach badge only for Chats + Leads
               const badge =
                 label === "Chats"
                   ? unreadChatsCount
@@ -165,7 +258,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                       <span>{label}</span>
                     </div>
 
-                    {/* ✅ BADGE (same UI you had commented out) */}
                     {badge > 0 && (
                       <span className="ml-2 inline-flex items-center justify-center min-w-8 h-8 text-[11px] text-[#737376] rounded-full border border-[#737376]">
                         {badge}
@@ -282,7 +374,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                               {n.title}
                             </p>
                             <p className="text-xs text-slate-500">{n.desc}</p>
-                            <p className="text-[11px] text-slate-400 mt-1">
+                            <p
+                              suppressHydrationWarning
+                              className="text-[11px] text-slate-400 mt-1"
+                            >
                               {n.createdAt
                                 ? new Date(n.createdAt).toLocaleString()
                                 : ""}
@@ -364,6 +459,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         role="menuitem"
                         onClick={async () => {
                           await signOut(auth);
+                          localStorage.removeItem("loginAt");
                           router.replace("/login");
                         }}
                       >
@@ -377,7 +473,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </header>
 
-          {/* Main content */}
           {/* Main content */}
           <main className="flex-1 px-4 pt-3 min-h-0">
             <div className="w-full h-full overflow-hidden flex flex-col">
@@ -393,6 +488,32 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </main>
         </div>
+
+        {toastNotif && (
+          <div className="fixed right-5 bottom-5 z-[60]">
+            <div className="max-w-xs w-80 bg-white border border-slate-200 shadow-xl rounded-2xl p-4 flex gap-3 items-start transition-transform duration-300 ease-out">
+              <div className="h-10 w-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <Bell className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-emerald-700">
+                  New Notification
+                </p>
+                <p className="text-sm font-medium text-slate-900">
+                  {toastNotif.title}
+                </p>
+                <p className="text-xs text-slate-500">{toastNotif.desc}</p>
+              </div>
+              <button
+                aria-label="Close notification toast"
+                className="text-slate-400 hover:text-slate-600 transition"
+                onClick={() => setToastNotif(null)}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   );

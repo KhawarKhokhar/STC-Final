@@ -1,9 +1,18 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { v4 as uuidv4 } from "uuid";
+
+import { uploadImageUnsigned } from "@/lib/cloudinary";
+import {
+  ColumnKey,
+  Task,
+  TasksBoard as TasksBoardType,
+  loadTasksBoardV2,
+  saveTasksBoardV2,
+} from "@/lib/tasks";
 
 import {
   CalendarDays,
@@ -38,17 +47,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 /* ---------------- Types ---------------- */
-type ColumnKey = "new" | "inprogress" | "review" | "done";
-
-type Task = {
-  id: string;
-  title: string;        // tag pill
-  heading: string;      // main heading
-  description: string;  // body
-  date: string;         // footer date
-  leads: number;
-  image?: string;       // optional preview
-};
 
 type Column = {
   key: ColumnKey;
@@ -64,48 +62,12 @@ const COLUMNS: Column[] = [
   { key: "done",       title: "Completed",        dot: "bg-emerald-500" },
 ];
 
-/* ---------------- Initial Tasks ---------------- */
-const INITIAL_TASKS: Record<ColumnKey, Task[]> = {
-  new: [
-    {
-      id: "t1",
-      title: "Web design",
-      heading: "Twottr - Redesign Project",
-      description: "Here you will make a Twitter web redesign project carefully.",
-      date: "02 May 23",
-      leads: 6,
-    },
-  ],
-  inprogress: [
-    {
-      id: "t2",
-      title: "Mobile Design",
-      heading: "Notnot - Mobile App",
-      description: "Hello guys, here is a brief file from the client. Good luck!",
-      date: "03 Jul 23",
-      leads: 6,
-    },
-  ],
-  review: [
-    {
-      id: "t3",
-      title: "Web design",
-      heading: "Gonial Landing Page",
-      description: "Here you will make a Landing Page. Good luck!",
-      date: "02 May 23",
-      leads: 6,
-    },
-  ],
-  done: [
-    {
-      id: "t4",
-      title: "Dashboard",
-      heading: "Maddog - Dashboard UI",
-      description: "Do it carefully and in accordance with the wishes of the client.",
-      date: "12 May 23",
-      leads: 3,
-    },
-  ],
+/* ---------------- Empty Board ---------------- */
+const EMPTY_BOARD: Record<ColumnKey, Task[]> = {
+  new: [],
+  inprogress: [],
+  review: [],
+  done: [],
 };
 
 /* ---------------- Form Type ---------------- */
@@ -116,6 +78,8 @@ type FormState = {
   description: string;
   imageFile: File | null;
   imagePreview: string;
+  existingImagePublicId?: string;
+  editingId?: string | null;
 };
 
 /* ======================= PAGE ======================= */
@@ -129,7 +93,10 @@ export default function TasksPage() {
   /* RIGHT PANEL STATE */
   const [view, setView] = useState<"day" | "week" | "month">("day");
   const [tasksByCol, setTasksByCol] =
-    useState<Record<ColumnKey, Task[]>>(INITIAL_TASKS);
+    useState<Record<ColumnKey, Task[]>>(EMPTY_BOARD);
+
+  const [loadingBoard, setLoadingBoard] = useState(true);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* MODAL STATE */
   const [openModal, setOpenModal] = useState(false);
@@ -140,7 +107,42 @@ export default function TasksPage() {
     description: "",
     imageFile: null,
     imagePreview: "",
+    existingImagePublicId: undefined,
+    editingId: null,
   });
+
+  // Load Tasks board from Firebase on mount
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const board = await loadTasksBoardV2();
+        if (!mounted) return;
+        if (board) setTasksByCol(normalizeBoard(board as TasksBoardType));
+      } catch (err) {
+        console.error("Failed to load tasks board:", err);
+      } finally {
+        if (mounted) setLoadingBoard(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Auto-save (debounced) to Firebase whenever board changes
+  useEffect(() => {
+    if (loadingBoard) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveTasksBoardV2(tasksByCol as unknown as TasksBoardType).catch((e) =>
+        console.error("Failed to save tasks board:", e)
+      );
+    }, 500);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [tasksByCol, loadingBoard]);
 
   /* Calendar styling */
   const calendarClassNames = useMemo(
@@ -177,12 +179,21 @@ const gridBackgroundStyle = {
     setForm((p) => ({ ...p, imageFile: file, imagePreview: preview }));
   }
 
-  /* Add task */
-  function addTask() {
+  async function submitTask() {
     if (!form.heading.trim()) return;
 
-    const newTask: Task = {
-      id: uuidv4(),
+    // Upload image to Cloudinary if a new file picked
+    let imageUrl: string | undefined;
+    let imagePublicId: string | undefined;
+
+    if (form.imageFile) {
+      const up = await uploadImageUnsigned(form.imageFile);
+      imageUrl = up.secure_url;
+      imagePublicId = up.public_id;
+    }
+
+    const base: Task = {
+      id: form.editingId || uuidv4(),
       title: form.title || "Web design",
       heading: form.heading,
       description: form.description,
@@ -192,13 +203,30 @@ const gridBackgroundStyle = {
         year: "2-digit",
       }),
       leads: 0,
-      image: form.imagePreview || undefined,
+      imageUrl:
+        imageUrl || (form.imagePreview && form.editingId ? form.imagePreview : undefined),
+      imagePublicId:
+        imagePublicId || (form.editingId ? form.existingImagePublicId : undefined),
     };
 
-    setTasksByCol((prev) => ({
-      ...prev,
-      [form.col]: [newTask, ...prev[form.col]],
-    }));
+    setTasksByCol((prev) => {
+      // If editing, remove from all columns first, then re-add to selected column at top
+      const next: Record<ColumnKey, Task[]> = {
+        new: [...prev.new],
+        inprogress: [...prev.inprogress],
+        review: [...prev.review],
+        done: [...prev.done],
+      };
+
+      if (form.editingId) {
+        (Object.keys(next) as ColumnKey[]).forEach((k) => {
+          next[k] = next[k].filter((t) => t.id !== form.editingId);
+        });
+      }
+
+      next[form.col] = [base, ...next[form.col]];
+      return next;
+    });
 
     setForm({
       col: "new",
@@ -207,8 +235,36 @@ const gridBackgroundStyle = {
       description: "",
       imageFile: null,
       imagePreview: "",
+      existingImagePublicId: undefined,
+      editingId: null,
     });
     setOpenModal(false);
+  }
+
+  function onEditTask(task: Task, col: ColumnKey) {
+    setForm({
+      col,
+      title: task.title,
+      heading: task.heading,
+      description: task.description,
+      imageFile: null,
+      imagePreview: task.imageUrl || "",
+      existingImagePublicId: task.imagePublicId,
+      editingId: task.id,
+    });
+    setOpenModal(true);
+  }
+
+  function onDeleteTask(taskId: string) {
+    setTasksByCol((prev) => {
+      const next: Record<ColumnKey, Task[]> = {
+        new: prev.new.filter((t) => t.id !== taskId),
+        inprogress: prev.inprogress.filter((t) => t.id !== taskId),
+        review: prev.review.filter((t) => t.id !== taskId),
+        done: prev.done.filter((t) => t.id !== taskId),
+      };
+      return next;
+    });
   }
 
   return (
@@ -409,8 +465,10 @@ const gridBackgroundStyle = {
         >
           <TasksBoard
             columns={COLUMNS}
-            tasksByCol={tasksByCol}
+            tasksByCol={normalizeBoard(tasksByCol)}
             setTasksByCol={setTasksByCol}
+            onEditTask={onEditTask}
+            onDeleteTask={onDeleteTask}
           />
         </div>
       </section>
@@ -421,7 +479,7 @@ const gridBackgroundStyle = {
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold text-slate-900">
-                Add New Task
+                {form.editingId ? "Edit Task" : "Add New Task"}
               </h3>
               <button
                 onClick={() => setOpenModal(false)}
@@ -517,10 +575,12 @@ const gridBackgroundStyle = {
                 Cancel
               </button>
               <button
-                onClick={addTask}
+                onClick={() => {
+                  submitTask().catch((e) => console.error(e));
+                }}
                 className="px-4 py-2 rounded-xl text-sm bg-slate-900 hover:bg-slate-800 text-white"
               >
-                Add Task
+                {form.editingId ? "Save Changes" : "Add Task"}
               </button>
             </div>
           </div>
@@ -535,12 +595,16 @@ function TasksBoard({
   columns,
   tasksByCol,
   setTasksByCol,
+  onEditTask,
+  onDeleteTask,
 }: {
   columns: Column[];
   tasksByCol: Record<ColumnKey, Task[]>;
   setTasksByCol: React.Dispatch<
     React.SetStateAction<Record<ColumnKey, Task[]>>
   >;
+  onEditTask: (task: Task, col: ColumnKey) => void;
+  onDeleteTask: (taskId: string) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -647,7 +711,9 @@ function TasksBoard({
               <ColumnLane
                 key={col.key}
                 column={col}
-                tasks={tasksByCol[col.key]}
+                tasks={tasksByCol[col.key] || []}
+                onEditTask={onEditTask}
+                onDeleteTask={onDeleteTask}
               />
             ))}
           </div>
@@ -669,9 +735,13 @@ function TasksBoard({
 function ColumnLane({
   column,
   tasks,
+  onEditTask,
+  onDeleteTask,
 }: {
   column: Column;
   tasks: Task[];
+  onEditTask: (task: Task, col: ColumnKey) => void;
+  onDeleteTask: (taskId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.key,
@@ -701,7 +771,13 @@ function ColumnLane({
           }`}
         >
           {tasks.map((task) => (
-            <SortableTaskCard key={task.id} task={task} />
+            <SortableTaskCard
+              key={task.id}
+              task={task}
+              colKey={column.key}
+              onEditTask={onEditTask}
+              onDeleteTask={onDeleteTask}
+            />
           ))}
 
           {tasks.length === 0 && (
@@ -716,7 +792,17 @@ function ColumnLane({
 }
 
 /* ---------------- Sortable Wrapper ---------------- */
-function SortableTaskCard({ task }: { task: Task }) {
+function SortableTaskCard({
+  task,
+  colKey,
+  onEditTask,
+  onDeleteTask,
+}: {
+  task: Task;
+  colKey: ColumnKey;
+  onEditTask: (task: Task, col: ColumnKey) => void;
+  onDeleteTask: (taskId: string) => void;
+}) {
   const {
     attributes,
     listeners,
@@ -739,19 +825,37 @@ function SortableTaskCard({ task }: { task: Task }) {
       {...listeners}
       className={isDragging ? "opacity-0" : "opacity-100"}
     >
-      <TaskCard task={task} />
+      <TaskCard
+        task={task}
+        onEdit={() => onEditTask(task, colKey)}
+        onDelete={() => onDeleteTask(task.id)}
+      />
     </div>
   );
+}
+
+function normalizeBoard(board: Record<ColumnKey, Task[]>): Record<ColumnKey, Task[]> {
+  return {
+    new: Array.isArray(board.new) ? board.new : [],
+    inprogress: Array.isArray(board.inprogress) ? board.inprogress : [],
+    review: Array.isArray(board.review) ? board.review : [],
+    done: Array.isArray(board.done) ? board.done : [],
+  };
 }
 
 /* ---------------- Task Card ---------------- */
 function TaskCard({
   task,
   isOverlay = false,
+  onEdit,
+  onDelete,
 }: {
   task: Task;
   isOverlay?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
+  const [openMenu, setOpenMenu] = useState(false);
   return (
     <div
       className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-100 w-full ${
@@ -762,9 +866,50 @@ function TaskCard({
         <span className="text-[12px] px-3 py-2 rounded-full font-semibold bg-indigo-100 text-indigo-700">
           {task.title}
         </span>
-        <button className="text-slate-400 hover:text-slate-600">
-          <MoreHorizontal size={24} />
-        </button>
+        {!isOverlay && (onEdit || onDelete) ? (
+          <div className="relative">
+            <button
+              onClick={() => setOpenMenu((v) => !v)}
+              className="text-slate-400 hover:text-slate-600"
+              aria-label="Task actions"
+            >
+              <MoreHorizontal size={24} />
+            </button>
+            {openMenu && (
+              <div
+                className="absolute right-0 mt-2 w-36 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden z-10"
+                onMouseLeave={() => setOpenMenu(false)}
+              >
+                {onEdit && (
+                  <button
+                    onClick={() => {
+                      setOpenMenu(false);
+                      onEdit();
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50"
+                  >
+                    Edit
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    onClick={() => {
+                      setOpenMenu(false);
+                      onDelete();
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-50"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <button className="text-slate-400 hover:text-slate-600" aria-label="Task">
+            <MoreHorizontal size={24} />
+          </button>
+        )}
       </div>
 
       <h4 className="text-base font-light text-slate-900 my-4">
@@ -775,10 +920,10 @@ function TaskCard({
         {task.description}
       </p>
 
-      {task.image && (
+      {task.imageUrl && (
         <div className="mb-3 overflow-hidden rounded-xl border border-slate-100">
           <img
-            src={task.image}
+            src={task.imageUrl}
             alt="task"
             className="w-full h-28 object-cover"
           />
