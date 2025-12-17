@@ -2,7 +2,13 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ChevronDown, MessageCircleMore, Plus, Loader2 } from "lucide-react";
+import {
+  Search,
+  ChevronDown,
+  MessageCircleMore,
+  Plus,
+  Loader2,
+} from "lucide-react";
 import {
   Blog,
   BlogSection,
@@ -80,10 +86,7 @@ export default function BlogsDashboardPage() {
     }
   }
 
-  const drafts = useMemo(
-    () => blogs.filter((b) => !b.published),
-    [blogs]
-  );
+  const drafts = useMemo(() => blogs.filter((b) => !b.published), [blogs]);
   const publishedBlogs = useMemo(
     () => blogs.filter((b) => b.published),
     [blogs]
@@ -114,11 +117,7 @@ export default function BlogsDashboardPage() {
     }));
   }
 
-  function updateSection(
-    idx: number,
-    key: keyof BlogSection,
-    value: string
-  ) {
+  function updateSection(idx: number, key: keyof BlogSection, value: string) {
     setForm((p) => {
       const next = [...p.sections];
       next[idx] = { ...next[idx], [key]: value };
@@ -161,9 +160,7 @@ export default function BlogsDashboardPage() {
         category: form.category,
         readTime: form.readTime,
         published: form.published,
-        content: form.sections.filter(
-          (s) => s.heading.trim() || s.body.trim()
-        ),
+        content: form.sections.filter((s) => s.heading.trim() || s.body.trim()),
         coverImageUrl,
         coverImagePublicId,
       };
@@ -218,13 +215,33 @@ export default function BlogsDashboardPage() {
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => router.push("/dashboard/blogs/add")}
-                    className="px-6 py-3 rounded-full bg-[#3DD3CE] text-white text-sm font-medium shadow-sm flex items-center gap-2"
+                    className="
+    px-6 py-3 rounded-full
+    bg-[#3DD3CE] text-white text-sm font-medium
+    shadow-sm
+    flex items-center gap-2
+    transition-all duration-300 ease-in-out
+    hover:shadow-lg hover:-translate-y-0.5
+    hover:bg-[#2BC1BC]
+    active:translate-y-0
+  "
                   >
                     <Plus className="w-4 h-4" /> Add Blog
                   </button>
+
                   <button
                     onClick={refresh}
-                    className="px-6 py-3 rounded-full border border-[#3DD3CE] text-[#3DD3CE] text-sm font-medium bg-white"
+                    className="
+    px-6 py-3 rounded-full
+    border border-[#3DD3CE]
+    text-[#3DD3CE] text-sm font-medium
+    bg-white
+    transition-all duration-300 ease-in-out
+    hover:bg-[#3DD3CE]
+    hover:text-white
+    hover:shadow-lg hover:-translate-y-0.5
+    active:translate-y-0
+  "
                   >
                     Refresh
                   </button>
@@ -381,9 +398,7 @@ export default function BlogsDashboardPage() {
 
           {/* RIGHT SIDEBAR */}
           <aside className="w-[320px] flex flex-col gap-6">
-            <h3 className="text-lg font-semibold text-slate-900">
-              Published
-            </h3>
+            <h3 className="text-lg font-semibold text-slate-900">Published</h3>
             <section className="px-2">
               <div className="space-y-3">
                 {publishedBlogs.slice(0, 4).map((item) => (
@@ -451,9 +466,7 @@ export default function BlogsDashboardPage() {
                       <p className="text-sm font-medium text-slate-900 line-clamp-2">
                         {blog.title}
                       </p>
-                      <p className="mt-1 text-[20px] text-[#14213D]">
-                        Draft
-                      </p>
+                      <p className="mt-1 text-[20px] text-[#14213D]">Draft</p>
                       <button
                         onClick={() => togglePublish(blog)}
                         className="px-6 py-2 rounded-full bg-[#3DD3CE] text-white text-[11px] font-medium self-start"
@@ -464,9 +477,7 @@ export default function BlogsDashboardPage() {
                   </div>
                 ))}
                 {drafts.length === 0 && (
-                  <p className="text-xs text-slate-500">
-                    No drafts available.
-                  </p>
+                  <p className="text-xs text-slate-500">No drafts available.</p>
                 )}
               </div>
             </section>
@@ -490,9 +501,7 @@ export default function BlogsDashboardPage() {
               </button>
             </div>
 
-            {error && (
-              <div className="mb-3 text-sm text-red-600">{error}</div>
-            )}
+            {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-3">

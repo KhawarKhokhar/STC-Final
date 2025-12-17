@@ -116,7 +116,7 @@ export default function DashboardHomePage() {
   ];
 
   return (
-    <main className="h-full w-full overflow-y-auto bg-gradient-to-br from-slate-50 via-white to-slate-100">
+    <main className="h-full w-full overflow-y-auto">
       <div className="w-full px-6 py-8 space-y-6">
         {/* Hero */}
         <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white px-6 py-7 shadow-sm">
@@ -140,7 +140,7 @@ export default function DashboardHomePage() {
                 </button>
               </div>
             </div>
-            <div className="relative hidden min-w-[240px] flex-1 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-500 p-6 text-white md:block">
+            <div className="relative hidden min-w-60 flex-1 rounded-2xl bg-linear-to-br from-teal-500 to-cyan-500 p-6 text-white md:block">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm uppercase tracking-[0.15em] text-white/80">Focus</p>
@@ -194,7 +194,7 @@ export default function DashboardHomePage() {
                 <BarChart3 className="h-4 w-4" /> Export
               </button>
             </div>
-            <div className="mt-4 h-64 w-full rounded-xl bg-gradient-to-b from-slate-50 to-white border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
+            <div className="mt-4 h-64 w-full rounded-xl bg-linear-to-b from-slate-50 to-white border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
               Chart placeholder (connect your analytics)
             </div>
           </div>

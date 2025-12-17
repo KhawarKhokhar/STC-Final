@@ -210,7 +210,7 @@ export default function AddBlogPage() {
                 <textarea
                   value={excerpt}
                   onChange={(e) => setExcerpt(e.target.value)}
-                  className="input min-h-[80px]"
+                  className="input min-h-20"
                   placeholder="Short summary shown on cards"
                 />
               </Field>

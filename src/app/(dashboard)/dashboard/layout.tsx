@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import { auth, rdb } from "@/lib/firebase";
 import { ref, onValue, update } from "firebase/database";
 import Loader from "@/components/ui/Loader";
+import { useAuth } from "@/context/AuthContext";
 
 // ---------------------------
 // AUTO LOGOUT (3 HOURS)
@@ -101,6 +102,7 @@ type Notif = {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   useAutoLogoutAfter3Hours();
 
+  const { user } = useAuth();
   const [openNotif, setOpenNotif] = useState(false);
   const [openProfile, setOpenProfile] = useState(false);
   const router = useRouter();
@@ -113,6 +115,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   const [notifications, setNotifications] = useState<Notif[]>([]);
   const [toastNotif, setToastNotif] = useState<Notif | null>(null);
+  const [adminProfile, setAdminProfile] = useState<{
+    name: string;
+    email: string;
+    avatarUrl?: string;
+    title?: string;
+  } | null>(null);
 
   // close on outside click
   useEffect(() => {
@@ -218,9 +226,41 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     (n) => n.unread && (n.type === "get_quote" || n.type === "contact_us")
   ).length;
 
+  // Pull current admin profile to drive avatar/name in header
+  useEffect(() => {
+    if (!user) return;
+    const pRef = ref(rdb, `admins/${user.uid}`);
+    const unsub = onValue(pRef, (snap) => {
+      const val = snap.val() as any;
+      if (val) {
+        setAdminProfile({
+          name: val.name || user.displayName || "Admin",
+          email: val.email || user.email || "",
+          avatarUrl: val.avatarUrl || "",
+          title: val.title || "",
+        });
+      } else {
+        setAdminProfile({
+          name: user.displayName || "Admin",
+          email: user.email || "",
+        });
+      }
+    });
+    return () => unsub();
+  }, [user]);
+
+  const profileName = adminProfile?.name || "Admin User";
+  const profileEmail = adminProfile?.email || "admin@example.com";
+  const profileAvatar = adminProfile?.avatarUrl || "";
+  const profileInitials = profileName
+    .split(" ")
+    .map((p) => p.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join("");
+
   return (
     <ProtectedRoute>
-      <div className="h-screen w-screen overflow-hidden bg-[#F3F3F3] text-slate-900 flex">
+      <div className="dashboard-shell h-screen w-screen overflow-hidden bg-[#F3F3F3] text-slate-900 flex">
         {/* Sidebar */}
         <aside className="w-64 bg-[#F3F3F3] border-r border-slate-200 flex flex-col">
           {/* Logo */}
@@ -408,9 +448,19 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   aria-haspopup="menu"
                   aria-expanded={openProfile}
                 >
-                  <div className="h-9 w-9 rounded-full bg-slate-200" />
+                  <div className="h-9 w-9 rounded-full bg-slate-200 overflow-hidden grid place-items-center text-xs font-semibold text-slate-700">
+                    {profileAvatar ? (
+                      <img
+                        src={profileAvatar}
+                        alt={profileName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      profileInitials || "A"
+                    )}
+                  </div>
                   <span className="text-sm font-medium text-slate-800">
-                    Manzoor Elahi
+                    {profileName}
                   </span>
                   <ChevronDown className="w-4 h-4 text-slate-400" />
                 </button>
@@ -422,13 +472,23 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   >
                     <div className="px-4 py-4 border-b border-slate-100">
                       <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded-full bg-slate-200" />
+                        <div className="h-11 w-11 rounded-full bg-slate-200 overflow-hidden grid place-items-center text-sm font-semibold text-slate-700">
+                          {profileAvatar ? (
+                            <img
+                              src={profileAvatar}
+                              alt={profileName}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            profileInitials || "A"
+                          )}
+                        </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-800">
-                            Manzoor Elahi
+                            {profileName}
                           </p>
                           <p className="text-xs text-slate-500">
-                            manzoor@salescorp.com
+                            {profileEmail}
                           </p>
                         </div>
                       </div>
@@ -490,7 +550,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
 
         {toastNotif && (
-          <div className="fixed right-5 bottom-5 z-[60]">
+          <div className="fixed right-5 bottom-5 z-60">
             <div className="max-w-xs w-80 bg-white border border-slate-200 shadow-xl rounded-2xl p-4 flex gap-3 items-start transition-transform duration-300 ease-out">
               <div className="h-10 w-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
                 <Bell className="w-5 h-5" />
@@ -514,6 +574,20 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
         )}
+      <style jsx global>{`
+        .dashboard-shell button {
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+          will-change: transform;
+        }
+        .dashboard-shell button:hover {
+          transform: translateY(-1px) scale(1.01);
+          box-shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.28);
+        }
+        .dashboard-shell button:active {
+          transform: translateY(0) scale(0.985);
+          box-shadow: 0 10px 24px -16px rgba(0, 0, 0, 0.35);
+        }
+      `}</style>
       </div>
     </ProtectedRoute>
   );
